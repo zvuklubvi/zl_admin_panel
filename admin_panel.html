@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель администратора</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Стили для темной темы Telegram */
+        body {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+        }
+        .tab-active {
+            background-color: var(--tg-theme-button-color, #5288c1);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+        .tab-inactive {
+            background-color: var(--tg-theme-secondary-bg-color, #f1f1f1);
+        }
+        .order-card {
+            background-color: var(--tg-theme-secondary-bg-color, #f1f1f1);
+            border: 1px solid var(--tg-theme-hint-color, #dddddd);
+        }
+    </style>
+</head>
+<body class="font-sans">
+
+    <div id="app" class="p-4">
+        <h1 class="text-2xl font-bold mb-4">Панель управления</h1>
+
+        <!-- Вкладки для фильтрации заказов -->
+        <div class="flex space-x-2 mb-4">
+            <button id="tab-new" class="tab-active px-4 py-2 rounded-lg font-semibold">Новые</button>
+            <button id="tab-in-progress" class="tab-inactive px-4 py-2 rounded-lg font-semibold">В работе</button>
+            <button id="tab-completed" class="tab-inactive px-4 py-2 rounded-lg font-semibold">Завершенные</button>
+        </div>
+
+        <!-- Контейнер для списка заказов -->
+        <div id="orders-list" class="space-y-3">
+            <!-- Карточки заказов будут добавляться сюда динамически -->
+            <p id="loading-text">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tg = window.Telegram.WebApp;
+            tg.ready(); // Сообщаем Telegram, что приложение готово
+
+            const loadingText = document.getElementById('loading-text');
+
+            // Проверяем, есть ли данные о пользователе
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                const user = tg.initDataUnsafe.user;
+                console.log("User data:", user);
+                loadingText.textContent = `Добро пожаловать, ${user.first_name}! (ID: ${user.id})`;
+                // В будущем здесь будет функция для загрузки заказов
+                // loadOrders('new');
+            } else {
+                loadingText.textContent = "Не удалось получить данные пользователя. Пожалуйста, откройте эту страницу через бота.";
+                tg.showAlert("Не удалось получить данные пользователя. Пожалуйста, откройте эту страницу через бота.");
+            }
+
+            // TODO: Добавить логику для переключения вкладок и загрузки заказов
+        });
+    </script>
+
+</body>
+</html>
