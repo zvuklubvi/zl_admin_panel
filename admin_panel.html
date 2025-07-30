@@ -7,63 +7,253 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Стили для темной темы Telegram */
+        :root {
+            --tg-bg: var(--tg-theme-bg-color, #ffffff);
+            --tg-text: var(--tg-theme-text-color, #000000);
+            --tg-hint: var(--tg-theme-hint-color, #999999);
+            --tg-button: var(--tg-theme-button-color, #40a7e3);
+            --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+            --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #f3f2f7);
+        }
         body {
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
         }
         .tab-active {
-            background-color: var(--tg-theme-button-color, #5288c1);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            background-color: var(--tg-button);
+            color: var(--tg-button-text);
+            border: 1px solid var(--tg-button);
         }
         .tab-inactive {
-            background-color: var(--tg-theme-secondary-bg-color, #f1f1f1);
+            background-color: var(--tg-secondary-bg);
+            color: var(--tg-text);
+            border: 1px solid var(--tg-hint);
         }
         .order-card {
-            background-color: var(--tg-theme-secondary-bg-color, #f1f1f1);
-            border: 1px solid var(--tg-theme-hint-color, #dddddd);
+            background-color: var(--tg-secondary-bg);
+            border: 1px solid var(--tg-hint);
+            transition: transform 0.2s;
+        }
+        .order-card:hover {
+            transform: translateY(-2px);
+        }
+        #modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+        #modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            max-height: 90vh;
+            overflow-y: auto;
         }
     </style>
 </head>
-<body class="font-sans">
+<body class="antialiased">
 
     <div id="app" class="p-4">
         <h1 class="text-2xl font-bold mb-4">Панель управления</h1>
 
         <!-- Вкладки для фильтрации заказов -->
         <div class="flex space-x-2 mb-4">
-            <button id="tab-new" class="tab-active px-4 py-2 rounded-lg font-semibold">Новые</button>
-            <button id="tab-in-progress" class="tab-inactive px-4 py-2 rounded-lg font-semibold">В работе</button>
-            <button id="tab-completed" class="tab-inactive px-4 py-2 rounded-lg font-semibold">Завершенные</button>
+            <button data-status="Новый" class="tab-button tab-active px-4 py-2 rounded-lg font-semibold text-sm">Новые</button>
+            <button data-status="В работе" class="tab-button tab-inactive px-4 py-2 rounded-lg font-semibold text-sm">В работе</button>
+            <button data-status="Завершен" class="tab-button tab-inactive px-4 py-2 rounded-lg font-semibold text-sm">Завершенные</button>
         </div>
 
         <!-- Контейнер для списка заказов -->
         <div id="orders-list" class="space-y-3">
-            <!-- Карточки заказов будут добавляться сюда динамически -->
-            <p id="loading-text">Загрузка данных...</p>
+            <p id="loading-text" class="text-center p-4">Загрузка данных...</p>
         </div>
     </div>
+
+    <!-- Модальное окно для деталей заказа -->
+    <div id="modal-backdrop" class="hidden"></div>
+    <div id="modal" class="w-11/12 max-w-lg p-5 rounded-xl shadow-lg hidden" style="background-color: var(--tg-bg);">
+        <div id="modal-content">
+            <!-- Содержимое модального окна будет вставлено здесь -->
+        </div>
+        <button id="modal-close-btn" class="mt-4 w-full px-4 py-2 rounded-lg font-bold" style="background-color: var(--tg-button); color: var(--tg-button-text);">
+            Закрыть
+        </button>
+    </div>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const tg = window.Telegram.WebApp;
-            tg.ready(); // Сообщаем Telegram, что приложение готово
+            tg.ready();
+            tg.expand(); // Раскрываем Web App на полный экран
 
+            const API_BASE_URL = ''; // Оставляем пустым, запросы пойдут на тот же хост
+            const state = {
+                currentStatus: 'Новый',
+                currentPage: 1,
+                totalPages: 1,
+                initData: tg.initData,
+            };
+
+            const ordersList = document.getElementById('orders-list');
             const loadingText = document.getElementById('loading-text');
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const modal = document.getElementById('modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalCloseBtn = document.getElementById('modal-close-btn');
 
-            // Проверяем, есть ли данные о пользователе
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                const user = tg.initDataUnsafe.user;
-                console.log("User data:", user);
-                loadingText.textContent = `Добро пожаловать, ${user.first_name}! (ID: ${user.id})`;
-                // В будущем здесь будет функция для загрузки заказов
-                // loadOrders('new');
-            } else {
-                loadingText.textContent = "Не удалось получить данные пользователя. Пожалуйста, откройте эту страницу через бота.";
-                tg.showAlert("Не удалось получить данные пользователя. Пожалуйста, откройте эту страницу через бота.");
+            // --- API Функции ---
+            async function apiFetch(endpoint, options = {}) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        ...options,
+                        headers: {
+                            ...options.headers,
+                            'Content-Type': 'application/json',
+                            'X-Telegram-Init-Data': state.initData,
+                        },
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error('API Fetch Error:', error);
+                    tg.showAlert(`Ошибка API: ${error.message}`);
+                    return null;
+                }
             }
 
-            // TODO: Добавить логику для переключения вкладок и загрузки заказов
+            async function loadOrders(status) {
+                loadingText.style.display = 'block';
+                ordersList.innerHTML = '';
+                ordersList.appendChild(loadingText);
+
+                const data = await apiFetch(`/api/orders?status=${status}&page=${state.currentPage}&limit=20`);
+
+                loadingText.style.display = 'none';
+                if (data && data.orders) {
+                    renderOrders(data.orders);
+                } else {
+                    ordersList.innerHTML = `<p class="text-center p-4" style="color: var(--tg-hint);">Заказы со статусом "${status}" не найдены.</p>`;
+                }
+            }
+
+            async function showOrderDetails(orderId) {
+                const order = await apiFetch(`/api/order/${orderId}`);
+                if (order) {
+                    renderModal(order);
+                    modal.classList.remove('hidden');
+                    modalBackdrop.classList.remove('hidden');
+                }
+            }
+
+            // --- Функции рендеринга ---
+            function renderOrders(orders) {
+                ordersList.innerHTML = '';
+                if (orders.length === 0) {
+                    ordersList.innerHTML = `<p class="text-center p-4" style="color: var(--tg-hint);">Заказы в этой категории отсутствуют.</p>`;
+                    return;
+                }
+                orders.forEach(order => {
+                    const card = document.createElement('div');
+                    card.className = 'order-card p-4 rounded-lg shadow cursor-pointer';
+                    card.dataset.orderId = order.order_id;
+
+                    const date = new Date(order.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                    card.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-lg">Заказ №${order.order_id}</span>
+                            <span class="text-sm" style="color: var(--tg-hint);">${date}</span>
+                        </div>
+                        <div class="mt-2">
+                            <p><strong>Клиент:</strong> ${order.user_telegram || 'Не указан'}</p>
+                            <p><strong>Тип:</strong> ${order.order_type}</p>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => showOrderDetails(order.order_id));
+                    ordersList.appendChild(card);
+                });
+            }
+
+            function renderModal(order) {
+                const details = order.details;
+                const keyMap = {
+                    gender: '👤 Пол клиента', recipient: '🎁 Для кого', sender_role: '👥 От кого',
+                    occasion: '🎉 Повод', years_together: '💞 Лет вместе', has_children: '👨‍👩‍👧‍👦 Дети',
+                    song_style: '🎶 Стиль песни', wishes: '✍️ Пожелания', email: '📧 Email',
+                    phone: '📱 Телефон', telegram: '✈️ Telegram', source: '📍 Источник'
+                };
+
+                let detailsHtml = '';
+                for (const key in keyMap) {
+                    if (details[key]) {
+                        detailsHtml += `
+                            <div class="mb-3">
+                                <p class="font-semibold" style="color: var(--tg-hint);">${keyMap[key]}</p>
+                                <p class="p-2 rounded" style="background-color: var(--tg-secondary-bg); white-space: pre-wrap; word-wrap: break-word;">${details[key]}</p>
+                            </div>
+                        `;
+                    }
+                }
+
+                modalContent.innerHTML = `
+                    <h2 class="text-xl font-bold mb-4">Детали заказа №${order.order_id}</h2>
+                    <div class="mb-3">
+                        <p class="font-semibold" style="color: var(--tg-hint);">Текущий статус</p>
+                        <p class="p-2 rounded font-bold" style="background-color: var(--tg-secondary-bg);">${order.status}</p>
+                    </div>
+                    ${detailsHtml}
+                `;
+            }
+
+            // --- Обработчики событий ---
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const status = button.dataset.status;
+                    if (state.currentStatus === status) return;
+
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('tab-active');
+                        btn.classList.add('tab-inactive');
+                    });
+                    button.classList.add('tab-active');
+                    button.classList.remove('tab-inactive');
+
+                    state.currentStatus = status;
+                    state.currentPage = 1;
+                    loadOrders(status);
+                });
+            });
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                modalBackdrop.classList.add('hidden');
+            }
+
+            modalCloseBtn.addEventListener('click', closeModal);
+            modalBackdrop.addEventListener('click', closeModal);
+
+            // --- Инициализация ---
+            if (!state.initData) {
+                loadingText.textContent = "Ошибка: не удалось получить данные для инициализации. Пожалуйста, откройте панель через бота.";
+                tg.showAlert("Ошибка: не удалось получить данные для инициализации.");
+                return;
+            }
+
+            loadOrders(state.currentStatus);
         });
     </script>
 
